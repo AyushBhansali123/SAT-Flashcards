@@ -1,0 +1,177 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NextAuth.js models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  isAdmin       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts           Account[]
+  sessions           Session[]
+  lists              List[]
+  userWordProgress   UserWordProgress[]
+  reviews            Review[]
+  starredWords       StarredWord[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Core application models
+model Word {
+  id           String    @id @default(cuid())
+  word         String    @unique
+  definition   String
+  example      String?
+  partOfSpeech String?
+  difficulty   Int       @default(1) // 1-5 scale
+  sourceSlug   String    @default("words-txt")
+  tags         String    @default("sat") // JSON array as string
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  listItems        ListItem[]
+  userWordProgress UserWordProgress[]
+  reviews          Review[]
+  starredWords     StarredWord[]
+
+  @@index([sourceSlug])
+  @@index([difficulty])
+}
+
+model List {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isPublic    Boolean  @default(false)
+  userId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ListItem[]
+
+  @@index([userId])
+  @@index([isPublic])
+}
+
+model ListItem {
+  id     String @id @default(cuid())
+  listId String
+  wordId String
+  order  Int    @default(0)
+
+  // Relations
+  list List @relation(fields: [listId], references: [id], onDelete: Cascade)
+  word Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, wordId])
+  @@index([order])
+}
+
+model UserWordProgress {
+  id                String    @id @default(cuid())
+  userId            String
+  wordId            String
+  easeFactor        Float     @default(2.5) // SM-2 algorithm
+  interval          Int       @default(1) // Days until next review
+  repetitions       Int       @default(0) // Number of successful reviews
+  lastReviewed      DateTime?
+  nextReview        DateTime?
+  totalReviews      Int       @default(0)
+  correctReviews    Int       @default(0)
+  streak            Int       @default(0)
+  isLearned         Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, wordId])
+  @@index([nextReview])
+  @@index([isLearned])
+}
+
+model Review {
+  id          String    @id @default(cuid())
+  userId      String
+  wordId      String
+  rating      Int       // 0-5 scale (SM-2 algorithm rating)
+  responseTime Int?      // Milliseconds
+  reviewType  String    @default("flashcard") // flashcard, quiz, etc.
+  isCorrect   Boolean
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([wordId])
+  @@index([createdAt])
+}
+
+model StarredWord {
+  id        String   @id @default(cuid())
+  userId    String
+  wordId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, wordId])
+}
