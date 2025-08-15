@@ -44,6 +44,58 @@ function parseWordsFile(content: string): { words: ParsedWord[]; warnings: strin
   const words: ParsedWord[] = []
   const warnings: string[] = []
   
+  // Check if this is a single-line format (word — definition — example)
+  const firstLine = lines[0] || ""
+  const isSingleLineFormat = firstLine.includes("—") || firstLine.includes(" - ") || firstLine.includes(" : ")
+  
+  if (isSingleLineFormat) {
+    // Parse single-line format
+    for (const line of lines) {
+      // Support multiple separators
+      let parts: string[]
+      if (line.includes(" — ")) {
+        parts = line.split(" — ")
+      } else if (line.includes(" - ")) {
+        parts = line.split(" - ")
+      } else if (line.includes(" : ")) {
+        parts = line.split(" : ")
+      } else {
+        continue
+      }
+      
+      if (parts.length >= 2) {
+        const word = parts[0].trim()
+        const definition = parts[1].trim()
+        const example = parts.length > 2 ? parts[2].trim() : undefined
+        
+        // Parse part of speech from definition
+        const { cleanDefinition, partOfSpeech } = parsePartOfSpeech(definition)
+        
+        // Validate word
+        if (word.length < 2) {
+          warnings.push(`Skipping word "${word}" - too short`)
+          continue
+        }
+        
+        if (cleanDefinition.length < 5) {
+          warnings.push(`Skipping word "${word}" - definition too short`)
+          continue
+        }
+        
+        words.push({
+          word: word.charAt(0).toUpperCase() + word.slice(1), // Title case
+          definition: cleanDefinition,
+          example,
+          partOfSpeech,
+          difficulty: assignDifficulty(word)
+        })
+      }
+    }
+    
+    return { words, warnings }
+  }
+  
+  // Original multi-line format parsing
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
