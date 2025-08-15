@@ -106,14 +106,47 @@ export default function StudyPage() {
   const hasMoreCards = studyData && currentCardIndex < studyData.length - 1
 
   const handleGrade = async (grade: ReviewGrade, responseTime: number) => {
-    if (!currentCard || !session?.user) return
+    console.log('StudyPage: handleGrade called with grade:', grade, 'responseTime:', responseTime)
+    console.log('StudyPage: currentCard:', currentCard?.word)
+    console.log('StudyPage: session user:', session?.user?.id)
+
+    if (!currentCard) {
+      console.error('StudyPage: No current card available')
+      return
+    }
+
+    // Allow anonymous users to continue with flashcards without saving progress
+    if (!session?.user) {
+      console.log('StudyPage: Anonymous user - updating local state only')
+      // Update session stats for anonymous users
+      const wasCorrect = grade >= 3
+      setSessionStats(prev => ({
+        correct: prev.correct + (wasCorrect ? 1 : 0),
+        total: prev.total + 1,
+        streak: wasCorrect ? prev.currentStreak + 1 : Math.max(prev.streak, prev.currentStreak),
+        currentStreak: wasCorrect ? prev.currentStreak + 1 : 0
+      }))
+
+      setCompletedCards(prev => prev + 1)
+
+      // Move to next card or finish session
+      if (hasMoreCards) {
+        setTimeout(() => {
+          setCurrentCardIndex(prev => prev + 1)
+        }, 1000)
+      }
+      return
+    }
 
     try {
+      console.log('StudyPage: Calling reviewMutation.mutateAsync')
       await reviewMutation.mutateAsync({
         wordId: currentCard.id,
         grade,
         responseTime
       })
+
+      console.log('StudyPage: Review mutation successful')
 
       // Update session stats
       const wasCorrect = grade >= 3
@@ -133,7 +166,24 @@ export default function StudyPage() {
         }, 1000)
       }
     } catch (error) {
-      console.error('Failed to record review:', error)
+      console.error('StudyPage: Failed to record review:', error)
+      // Even if the API call fails, continue with the session locally
+      const wasCorrect = grade >= 3
+      setSessionStats(prev => ({
+        correct: prev.correct + (wasCorrect ? 1 : 0),
+        total: prev.total + 1,
+        streak: wasCorrect ? prev.currentStreak + 1 : Math.max(prev.streak, prev.currentStreak),
+        currentStreak: wasCorrect ? prev.currentStreak + 1 : 0
+      }))
+
+      setCompletedCards(prev => prev + 1)
+
+      // Move to next card or finish session
+      if (hasMoreCards) {
+        setTimeout(() => {
+          setCurrentCardIndex(prev => prev + 1)
+        }, 1000)
+      }
     }
   }
 
